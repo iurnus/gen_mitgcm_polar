@@ -1,0 +1,26 @@
+snapshots: 157  (2016-01-07 .. 2019-01-03)
+record period: 7 days
+side field    min      max     (wet points)
+  W  T       0.776   29.285
+  W  S      28.035   37.346
+  W  U      -0.538    0.488
+  W  V      -0.577    0.775
+  W  Eta    -0.185    0.783
+  E  T      -0.212   29.168
+  E  S      34.066   36.077
+  E  U      -1.239    1.144
+  E  V      -1.245    1.019
+  E  Eta    -0.187    1.262
+  S  T       0.504   28.577
+  S  S      33.233   36.320
+  S  U      -1.661    1.456
+  S  V      -1.853    1.720
+  S  Eta    -0.126    1.227
+  N  T       0.005   30.542
+  N  S      33.606   37.628
+  N  U      -2.103    1.822
+  N  V      -1.842    1.858
+  N  Eta    -0.867    1.593
+net inflow (Sv), first record: W -33.4  E -1.8  S +20.5  N +31.5   total +16.81
+total net inflow over all records: mean +14.31 Sv, range -65.39 .. +71.41 Sv
+(a non-zero total changes mean sea level; useOBCSbalance=.TRUE. removes it)

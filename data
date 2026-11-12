@@ -1,0 +1,12 @@
+# Gridding parameters
+&PARM04
+usingCartesianGrid = .FALSE.,
+usingSphericalPolarGrid = .FALSE.,
+usingCurvilinearGrid = .TRUE.,
+delZ= 4.2, 5, 
+      5.9, 6.9, 8.5, 9.5, 10, 10, 10, 10, 10, 10, 
+      10, 10, 10, 10, 13, 17, 20, 20, 20, 20, 
+      20, 20, 22, 30, 38, 45, 50, 50, 53, 72, 
+      100, 100, 100, 100, 100, 150, 200, 200, 200, 220, 
+      300, 380, 400, 400, 400, 400, 400, 400, 400, 400, 
+& 

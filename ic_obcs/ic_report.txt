@@ -1,0 +1,9 @@
+model grid 180 x 180 x 52; wet columns 27652
+wet model columns south of GLORYS limit (-80.0): 0 (filled from nearest GLORYS row)
+field    min      max      mean   (wet points)
+T      -2.499   27.729    5.398
+S       0.000   38.023   34.528
+U      -1.607    1.708    0.002
+V      -1.793    1.456   -0.003
+Eta    -1.954    1.175   -0.537
+max surface speed 1.950 m/s

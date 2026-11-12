@@ -1,0 +1,12 @@
+ &PARM01
+ readBinaryPrec=32,
+ &
+ &PARM05
+ hydrogThetaFile='T_init.bin',
+ hydrogSaltFile='S_init.bin',
+ uVelInitFile='U_init.bin',
+ vVelInitFile='V_init.bin',
+ pSurfInitFile='Eta_init.bin',
+ &
+# U/V are grid-relative (model i/j directions), already rotated from east/north.
+# Arrays: Nx=180, Ny=180, Nr=52 (delZ sum 6000 m)

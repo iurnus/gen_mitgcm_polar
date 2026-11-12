@@ -1,0 +1,7 @@
+source nodes per cell: 668 - 210430
+wet cells: 27649 of 32400
+depth range: 2.3 - 6000.0 m (clipped at 6000)
+cells removed as lakes/isolated basins: 4
+open-boundary wet cells: W 128  E 143  S 135  N 178
+agreement with WRF LANDMASK: 99.69%  (MITgcm wet/WRF land 49, MITgcm dry/WRF ocean 52)
+WRF-mask variant written: 27652 wet cells
