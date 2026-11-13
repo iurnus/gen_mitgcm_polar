@@ -61,11 +61,6 @@ class WRFPolarStereo:
         lat, _ = self.inv(x, y)
         return self.k / (1.0 + np.sin(self.h * np.deg2rad(lat)))
 
-    def angles(self, lon):
-        """Grid x-axis relative to east: uE = CS*u - SN*v, vN = SN*u + CS*v."""
-        d = np.deg2rad(lon) - self.lam0
-        return np.cos(d), self.h * -np.sin(d) * -1.0 if self.h < 0 else -np.sin(d)
-
 
 GL_X, GL_W = np.polynomial.legendre.leggauss(8)
 

@@ -7,10 +7,11 @@ Why segments: each straight model boundary curves through ~90 deg of longitude
 (41 S - 25 S), so one lat/lon box per side would download most of the band.
 Short segments keep every box close to the boundary.
 
-Snapshot dates: ONE continuous sequence  anchor + n*period  (default 2015-01-01,
-every 7 days) regardless of calendar year, so leap years never matter and any
-date window you download (e.g. one month to test, or the whole run) lands on the
-same sequence. "Snapshot" = the GLORYS daily mean of that day.
+Snapshot dates: --start, then every --period days (default 7), up to and including
+one extra snapshot at or after --end. Use the model start and end dates: the first
+record is then the model start and the last one covers the model end. Leap years do
+not matter (the period is a fixed number of days). "Snapshot" = the GLORYS daily
+mean of that day.
 
 Each segment covers the boundary cells and the first interior cells (all points
 OBCS needs: tracer points, normal and tangential velocity points), plus --pad
@@ -35,9 +36,9 @@ Examples:
   python download_glorys_obc_ps.py geo_em_d01.nc --bathy bathy.bin \
       --start 2016-01-01 --end 2016-01-31 --outdir obc_2016_01
 
-  # whole run, incl. one record before the start and one after the end
+  # whole run 2016-01-01 .. 2019-01-01 (snapshots 2016-01-01, 01-08, ..., 2019-01-04)
   python download_glorys_obc_ps.py geo_em_d01.nc --bathy bathy.bin \
-      --start 2014-12-25 --end 2020-01-07 --outdir obc_2015_2019
+      --start 2016-01-01 --end 2019-01-01 --outdir save_glorys
 
   # summarise downloaded files
   python download_glorys_obc_ps.py geo_em_d01.nc --bathy bathy.bin --check --outdir obc_2016_01
@@ -62,16 +63,16 @@ RES = 1.0 / 12.0
 
 
 # ============================================================== snapshot dates
-def snapshot_dates(start, end, anchor, period):
-    n0 = -((anchor - start).days // period)            # ceil((start-anchor)/period)
+def snapshot_dates(start, end, period):
+    """start, start+period, ... up to and including the first date >= end.
+    Returns a list of (record index from 0, date)."""
     out = []
-    n = n0
+    n = 0
     while True:
-        d = anchor + timedelta(days=n * period)
-        if d > end:
+        d = start + timedelta(days=n * period)
+        out.append((n, d))
+        if d >= end:
             break
-        if d >= start:
-            out.append((n, d))
         n += 1
     return out
 
@@ -211,7 +212,7 @@ def write_segment(ds, seg, dates, path, a):
         source_dataset=a.dataset,
         boundary_side=seg["side"], segment=seg["seg"],
         along_side_cells=f"{seg['k0']}..{seg['k1'] - 1} (0-based)",
-        snapshot_anchor=a.anchor, snapshot_period_days=a.period,
+        snapshot_start=a.start, snapshot_period_days=a.period,
         snapshot_index_first=int(dates[0][0]), snapshot_index_last=int(dates[-1][0]),
         longitude_note="continuous; may extend beyond +-180 for segments crossing the dateline",
         created=datetime.now().isoformat(timespec="seconds"),
@@ -284,9 +285,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("geo", help="WPS geo_em file (defines the grid)")
     ap.add_argument("--bathy", help="MITgcm bathymetry (>f4); all-land segments are skipped")
-    ap.add_argument("--start", help="first date to download, YYYY-MM-DD")
-    ap.add_argument("--end", help="last date to download, YYYY-MM-DD")
-    ap.add_argument("--anchor", default="2015-01-01", help="a date in the snapshot sequence")
+    ap.add_argument("--start", help="model start date = first snapshot, YYYY-MM-DD")
+    ap.add_argument("--end", help="model end date, YYYY-MM-DD; one snapshot at or after it is included")
     ap.add_argument("--period", type=int, default=7, help="days between snapshots")
     ap.add_argument("--sides", nargs="+", default=["W", "E", "S", "N"], choices=["W", "E", "S", "N"])
     ap.add_argument("--seg-len", type=int, default=10, help="model cells per segment")
@@ -308,13 +308,13 @@ def main():
         ap.error("--start and --end are required")
     os.makedirs(a.outdir, exist_ok=True)
 
-    anchor = date.fromisoformat(a.anchor)
-    dates = snapshot_dates(date.fromisoformat(a.start), date.fromisoformat(a.end), anchor, a.period)
+    dates = snapshot_dates(date.fromisoformat(a.start), date.fromisoformat(a.end), a.period)
     if not dates:
         raise SystemExit("no snapshot dates fall in that window")
     segs, (P, g, nx, ny) = make_segments(a.geo, a.bathy, a.sides, a.seg_len, a.pad)
 
-    print(f"snapshots (every {a.period} d, anchored at {anchor}): {len(dates)}")
+    print(f"snapshots (every {a.period} d from {a.start}): {len(dates)}, "
+          f"last {dates[-1][1]} (covers --end {a.end})")
     print("   " + ", ".join(f"{d}" for _, d in dates[:8]) + (" ..." if len(dates) > 8 else ""))
     todo = [s for s in segs if s["nwet"] != 0]
     tot = 0.0
