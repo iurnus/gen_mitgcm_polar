@@ -206,6 +206,136 @@ def verify(g, wrf, uv, mf, dims):
     return "\n".join(lines)
 
 
+def plot_grid_check(path, P, g, wrf, dims, snx, sny, bathy=None, title="",
+                    mask_bathy=None, mask_label="MITgcm"):
+    """Four-panel check figure in the projection plane (km from the pole):
+    1) bathymetry (or WRF LANDMASK if no bathymetry is given)
+    2) lat/lon graticule and the tile layout (snx x sny)
+    3) true grid spacing DXF (km)
+    4) land/sea mask vs WRF LANDMASK (or the grid rotation angle if no bathymetry).
+    bathy, mask_bathy: (ny, nx) arrays, negative = ocean. Panel 4 compares mask_bathy
+    (default: bathy) with WRF; mask_label names it in the legend and title."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    from matplotlib.patches import Patch
+
+    nx, ny, dx, dy = dims
+    C_LAND, C_OCEAN, C_INK, C_GRID = "#d9d8d4", "#eef3f8", "#52514e", "#9b9a96"
+    C_WET_ONLY, C_DRY_ONLY = "#eb6834", "#2a78d6"
+    wrf_ocean = wrf["LANDMASK"] < 0.5
+    if bathy is not None:
+        H = -np.asarray(bathy, dtype=np.float64).reshape(ny, nx)
+        ocean = H > 0
+    else:
+        H, ocean = None, wrf_ocean
+
+    xg, yg = (v / 1e3 for v in P.fwd(g["YG"], g["XG"]))                 # corners (ny+1, nx+1)
+    xc, yc = (v / 1e3 for v in P.fwd(g["YC"][:ny, :nx], g["XC"][:ny, :nx]))
+    lat = g["YC"][:ny, :nx]
+    hemi = "N" if P.h > 0 else "S"
+
+    fig, ax = plt.subplots(2, 2, figsize=(12, 11.5), constrained_layout=True)
+    for a_ in ax.ravel():
+        a_.set_aspect("equal")
+        a_.set_xlabel("x (km)", color=C_INK); a_.set_ylabel("y (km)", color=C_INK)
+        a_.tick_params(colors=C_INK, labelsize=8)
+        for s in a_.spines.values():
+            s.set_color(C_GRID)
+
+    def coast(a_):
+        a_.contour(xc, yc, ocean.astype(float), levels=[0.5], colors=C_INK, linewidths=0.6)
+
+    # 1) bathymetry (or WRF land/sea mask)
+    a1 = ax[0, 0]
+    a1.pcolormesh(xg, yg, np.where(ocean, np.nan, 1.0), cmap=ListedColormap([C_LAND]), shading="flat")
+    if H is not None:
+        blues = ListedColormap(plt.get_cmap("Blues")(np.linspace(0.18, 1.0, 256)))
+        pc = a1.pcolormesh(xg, yg, np.ma.masked_where(~ocean, H), cmap=blues, vmin=0,
+                           vmax=np.ceil(H.max() / 1000) * 1000, shading="flat")
+        fig.colorbar(pc, ax=a1, shrink=0.8, label="depth (m)")
+        a1.set_title("Bathymetry", fontsize=10)
+    else:
+        a1.pcolormesh(xg, yg, np.where(ocean, 1.0, np.nan), cmap=ListedColormap([C_OCEAN]), shading="flat")
+        a1.set_title("WRF LANDMASK (give --bathy to show bathymetry)", fontsize=10)
+    coast(a1)
+
+    # 2) graticule + tiles
+    a2 = ax[0, 1]
+    a2.pcolormesh(xg, yg, np.where(ocean, 0.0, 1.0), cmap=ListedColormap([C_OCEAN, C_LAND]), shading="flat")
+    coast(a2)
+    lat_lv = np.arange(-80, 90, 10.0)
+    cs = a2.contour(xc, yc, lat, levels=lat_lv, colors=C_GRID, linewidths=0.6)
+    a2.clabel(cs, fmt=lambda v: f"{abs(v):g}°{'N' if v > 0 else 'S'}", fontsize=7)
+    rmax = np.hypot(xg, yg).max()
+    rl = 0.88 * min(np.abs(xg).max(), np.abs(yg).max())
+    for L in np.arange(-180, 180, 30.0):               # meridians as rays from the pole
+        px, py = P.fwd(np.array([89.999 * P.h]), np.array([L]))
+        qx, qy = P.fwd(np.array([0.0]), np.array([L]))
+        ux, uy = (qx - px)[0], (qy - py)[0]
+        n = np.hypot(ux, uy)
+        r = np.array([0.0, rmax])
+        a2.plot(r * ux / n, r * uy / n, color=C_GRID, lw=0.6)
+        lab = f"{abs(L):g}°" + ("" if abs(L) in (0, 180) else ("E" if L > 0 else "W"))
+        a2.text(rl * ux / n, rl * uy / n, lab, fontsize=7, color=C_INK, ha="center", va="center",
+                bbox=dict(fc="white", ec="none", alpha=0.7, pad=0.5))
+    a2.set_xlim(xg.min(), xg.max()); a2.set_ylim(yg.min(), yg.max())
+    npx, npy = nx // snx, ny // sny
+    for i in range(0, nx + 1, snx):
+        a2.plot(xg[:, i], yg[:, i], color=C_DRY_ONLY, lw=0.9, ls="--")
+    for j in range(0, ny + 1, sny):
+        a2.plot(xg[j, :], yg[j, :], color=C_DRY_ONLY, lw=0.9, ls="--")
+    for bj in range(npy):
+        for bi in range(npx):
+            jc, ic = bj * sny + sny // 2, bi * snx + snx // 2
+            a2.text(xc[jc, ic], yc[jc, ic], f"{bi + 1 + bj * npx}", fontsize=7, color=C_DRY_ONLY,
+                    ha="center", va="center")
+    a2.set_title(f"Graticule and tiles: {npx} x {npy} tiles of {snx} x {sny}", fontsize=10)
+
+    # 3) true grid spacing
+    a3 = ax[1, 0]
+    dxf = g["DXF"][:ny, :nx] / 1e3
+    pc = a3.pcolormesh(xg, yg, dxf, cmap="Oranges", shading="flat")
+    c3 = a3.contour(xc, yc, dxf, levels=np.arange(np.ceil(dxf.min() / 2.5) * 2.5, dxf.max(), 2.5),
+                    colors=C_INK, linewidths=0.5)
+    a3.clabel(c3, fmt="%g", fontsize=7)
+    coast(a3)
+    fig.colorbar(pc, ax=a3, shrink=0.8, label="DXF (km)")
+    tl = abs(np.rad2deg(np.arcsin(P.k - 1)))
+    a3.set_title(f"True grid spacing: {dxf.min():.1f} - {dxf.max():.1f} km "
+                 f"(nominal {dx / 1e3:g} km at {tl:.0f}°{hemi})", fontsize=10)
+
+    # 4) mask vs WRF (or rotation angle)
+    a4 = ax[1, 1]
+    if H is not None:
+        mocean = ocean if mask_bathy is None else \
+            (-np.asarray(mask_bathy, dtype=np.float64).reshape(ny, nx) > 0)
+        cat = np.where(mocean & wrf_ocean, 0, np.where(~mocean & ~wrf_ocean, 1,
+                       np.where(mocean & ~wrf_ocean, 2, 3)))
+        a4.pcolormesh(xg, yg, cat, cmap=ListedColormap([C_OCEAN, C_LAND, C_WET_ONLY, C_DRY_ONLY]),
+                      norm=BoundaryNorm([-0.5, 0.5, 1.5, 2.5, 3.5], 4), shading="flat")
+        n2, n3 = int((cat == 2).sum()), int((cat == 3).sum())
+        a4.legend(handles=[Patch(fc=C_OCEAN, ec=C_GRID, label="ocean in both"),
+                           Patch(fc=C_LAND, ec=C_GRID, label="land in both"),
+                           Patch(fc=C_WET_ONLY, label=f"{mask_label} ocean, WRF land ({n2})"),
+                           Patch(fc=C_DRY_ONLY, label=f"{mask_label} land, WRF ocean ({n3})")],
+                  loc="lower left", fontsize=8, framealpha=0.9)
+        a4.set_title(f"{mask_label} mask vs WRF LANDMASK: {100 * (cat < 2).mean():.2f}% agree",
+                     fontsize=10)
+    else:
+        ang = np.rad2deg(np.arctan2(g["AngleSN"][:ny, :nx], g["AngleCS"][:ny, :nx]))
+        pc = a4.pcolormesh(xg, yg, ang, cmap="twilight", vmin=-180, vmax=180, shading="flat")
+        fig.colorbar(pc, ax=a4, shrink=0.8, label="angle of grid x-axis from east (deg)")
+        a4.set_title("Grid rotation angle (atan2(AngleSN, AngleCS))", fontsize=10)
+    coast(a4)
+
+    fig.suptitle(title or f"MITgcm grid: {nx} x {ny} cells, polar stereographic "
+                 f"({'north' if P.h > 0 else 'south'} pole)", fontsize=12)
+    fig.savefig(path, dpi=110)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("geo"); ap.add_argument("outdir")

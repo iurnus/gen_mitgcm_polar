@@ -21,7 +21,7 @@ from scipy.io import netcdf_file
 from scipy import ndimage
 
 sys.path.insert(0, os.path.dirname(__file__))
-from make_mitgcm_grid import build  # noqa: E402
+from make_mitgcm_grid import build, plot_grid_check  # noqa: E402
 
 
 LAT_NAMES = ("lat", "latitude", "y")
@@ -110,6 +110,9 @@ def main():
     ap.add_argument("etopo"); ap.add_argument("geo"); ap.add_argument("outdir")
     ap.add_argument("--maxdepth", type=float, default=6000.0)
     ap.add_argument("--name", default="bathy_antarctic60km")
+    ap.add_argument("--snx", type=int, default=30, help="tile size in x for the figure (sNx)")
+    ap.add_argument("--sny", type=int, default=30, help="tile size in y for the figure (sNy)")
+    ap.add_argument("--no-plot", action="store_true", help="do not write grid_check.png")
     a = ap.parse_args()
 
     P, g, wrf, uv, mf, (nx, ny, dx, dy) = build(a.geo)
@@ -190,6 +193,16 @@ def main():
     msg.append(f"WRF-mask variant written: {int((d2 < 0).sum())} wet cells")
     open(os.path.join(a.outdir, "bathy_report.txt"), "w").write("\n".join(msg) + "\n")
     print("\n".join(msg))
+
+    # check figure: bathymetry from the WRF-mask file (what the model uses); the mask
+    # panel compares the topography-derived mask with WRF LANDMASK
+    if not a.no_plot:
+        path = os.path.join(a.outdir, "grid_check.png")
+        plot_grid_check(path, P, g, wrf, (nx, ny, dx, dy), a.snx, a.sny, bathy=d2,
+                        mask_bathy=d, mask_label="Topography",
+                        title=f"MITgcm grid from {os.path.basename(a.geo)}: {nx} x {ny} cells "
+                              f"({a.name}_wrfmask.bin)")
+        print(f"wrote {path}")
 
 
 if __name__ == "__main__":
