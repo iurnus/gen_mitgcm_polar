@@ -1,1 +1,0 @@
-../make_mitgcm_obc_ps.py
